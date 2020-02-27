@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using OculusTray.Properties;
+using Microsoft.Win32;
 
 namespace OculusTray
 {
@@ -23,6 +24,11 @@ namespace OculusTray
         private ToolStripMenuItem _menuStart;
         private ToolStripMenuItem _menuStop;
         private ToolStripMenuItem _menuRestart;
+
+        private ToolStripMenuItem _Menu_OpenClient;
+        private ToolStripSeparator _Menu_OpenClientSeperator;
+
+        private ToolStripMenuItem autoStart;
 
         public OculusTrayIcon(OculusService oculusService, FileInfo oculusClientPath)
         {
@@ -41,7 +47,7 @@ namespace OculusTray
             UpdateStatus();
             PollServiceStatus();
         }
-        
+
         private ContextMenuStrip CreateContextMenu()
         {
             var elevateImage = OculusUtil.IsElevated ? (Image)null : SystemIcons.Shield.ToBitmap();
@@ -49,14 +55,20 @@ namespace OculusTray
             var menu = new ContextMenuStrip();
             menu.Items.AddRange(new ToolStripItem[]
             {
-                new ToolStripMenuItem(Resources.Menu_OpenClient, null, OnOpenOculusClient),
+                autoStart = new ToolStripMenuItem("Start with Windows", null, autoStartCheck),
                 new ToolStripSeparator(),
+                _Menu_OpenClient = new ToolStripMenuItem(Resources.Menu_OpenClient, null, OnOpenOculusClient),
+                _Menu_OpenClientSeperator = new ToolStripSeparator(),
                 _menuStart = new ToolStripMenuItem(Resources.Menu_Start, elevateImage, OnStart),
                 _menuStop = new ToolStripMenuItem(Resources.Menu_Stop, elevateImage, OnStop),
                 _menuRestart = new ToolStripMenuItem(Resources.Menu_Restart, elevateImage, OnRestart),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(Resources.Menu_Exit, null, OnExit),
             });
+
+            autoStart.CheckOnClick = true;
+            autoStart.CheckState = CheckState.Checked;
+            RegisterInStartup(autoStart.CheckState == CheckState.Checked);
 
             _menuStart.Font = new Font(_menuStart.Font, FontStyle.Bold);
             _menuStop.Font = new Font(_menuStop.Font, FontStyle.Bold);
@@ -67,6 +79,11 @@ namespace OculusTray
         private void OnOpenOculusClient(object sender, EventArgs args)
         {
             Process.Start(_oculusClientPath.FullName);
+        }
+
+        private void autoStartCheck(object sender, EventArgs e)
+        {
+            RegisterInStartup(autoStart.CheckState == CheckState.Checked);
         }
 
         private void OnStart(object sender, EventArgs args)
@@ -138,6 +155,8 @@ namespace OculusTray
             _notifyIcon.Icon = Resources.Running;
             _notifyIcon.Text = $"{Resources.Oculus_VR_Service} {Resources.Status_Running}";
 
+            _Menu_OpenClient.Visible = true;
+            _Menu_OpenClientSeperator.Visible = true;
             _menuStart.Visible = false;
             _menuStop.Visible = _menuRestart.Visible = true;
         }
@@ -147,6 +166,8 @@ namespace OculusTray
             _notifyIcon.Icon = Resources.Stopped;
             _notifyIcon.Text = $"{Resources.Oculus_VR_Service} {Resources.Status_Stopped}";
 
+            _Menu_OpenClient.Visible = false;
+            _Menu_OpenClientSeperator.Visible = false;
             _menuStart.Visible = true;
             _menuStop.Visible = _menuRestart.Visible = false;
         }
@@ -172,6 +193,8 @@ namespace OculusTray
             _notifyIcon.Icon = Resources.Unknown;
             _notifyIcon.Text = Resources.Oculus_VR_Service;
 
+            _Menu_OpenClient.Visible = false;
+            _Menu_OpenClientSeperator.Visible = false;
             _menuStart.Visible = _menuStop.Visible = _menuRestart.Visible = true;
         }
 
@@ -188,6 +211,19 @@ namespace OculusTray
         {
             _disposed = true;
             _notifyIcon.Dispose();
+        }
+
+        private void RegisterInStartup(bool isChecked)
+        {
+            RegistryKey registryKey = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+            if (isChecked)
+            {
+                registryKey.SetValue("OculusTray", Application.ExecutablePath);
+            }
+            else
+            {
+                registryKey.DeleteValue("OculusTray");
+            }
         }
     }
 }
